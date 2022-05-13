@@ -11,7 +11,7 @@ from random import choices
 from scipy.stats import norm
 
 
-class Particle_filter:
+class ParticleFilter:
     """
     Implement the particle filter algorithm for binary features.
     This class is roughly equivalent to "LCM_infer" in the LCM toolbox,
@@ -21,24 +21,22 @@ class Particle_filter:
     def __init__(self, features, opts={}):
         """
         Expected input:
-            features -  (TxD) array of features per trials 
+            features -  (TxD) array of features per trials
                         where first column is US
                         Can be anything that can be easily
                         converted to np.array
-                        
-            opts -      dictionary of options. Possible fields:
-                        alpha : default .1, parameter for probability of new latent causes
+            opts -      dictionary of options. Possible fields (defaults):
+                        alpha (0.1): parameter for probability of new latent causes
                         stickiness: tendency to stick to current cause
-                        beta_prior: default [1,1], parameters of beta prior of likelihood of features
-                        max_cause:  default: 10, maximum number of causes
-                        n_particles: default: 100, number of particles
+                        beta_prior ([1, 1]): parameters of prior on likelihood of features
+                        max_cause (10):  maximum number of causes
+                        n_particles (100): default: 100, number of particles
         """
-
         self.opts = opts
         if not isinstance(features, np.ndarray):
             try:
                 features = np.array(features)
-            except:
+            except Exception:
                 raise RuntimeError(
                     "Please give features as np.array or"
                     + "something that can be converted to one."
@@ -105,14 +103,12 @@ class Particle_filter:
         """
         Implement the algorithm, return results
         """
-        # local arrays
         posterior = np.zeros(self.max_cause)
         posterior[0] = 1
         posterior0 = np.c_[
             np.ones((self.n_particles, 1)),
             np.zeros((self.n_particles, self.max_cause - 1)),
         ]
-        # loop over trials
         for t in range(self.n_trials):
             # initiate likelihood as cooccurence of causes with features being 1
             likelihood = self.fcc1.copy()
@@ -120,8 +116,9 @@ class Particle_filter:
             feat0 = np.where(self.features[t, :] == 0)
             likelihood[:, :, feat0] = self.fcc0[:, :, feat0]
             # likelihood of features given previous cause assignments
-            likelihood = (likelihood + self.beta_prior[0]) / (
-                self.cause_count + sum(self.beta_prior)
+            likelihood = (
+                (likelihood + self.beta_prior[0])
+                / (self.cause_count + sum(self.beta_prior))
             )[:, :, np.newaxis]
             if self.alpha > 0:
                 # prior for old cause mainly depends on cause counts
@@ -133,13 +130,13 @@ class Particle_filter:
                         range(self.n_particles), self.current_cause - 1
                     ] += self.stickiness
                 # probability of new cause is proportional to alpha
-                # As per Gershman's implementation, the first unused cause per particle is the new cause
-                # Not entirely sure it that's intended or a bug.
+                # As per Gershman's implementation, the first unused cause per particle
+                # is the new cause. Not entirely sure if that's intended or a bug.
                 for i in range(prior.shape[0]):
                     idx = np.where(prior[i, :] == 0)[0]
                     if idx.shape[0] > 0:
                         prior[i, idx[0]] = self.alpha
-                # compute posterior of product of prior and likelihood(product of probabilities)
+                # compute posterior of product of prior and likelihood
                 posterior = prior * likelihood[:, :, 1:].prod(axis=2)
                 # Normalize it without likelihood of US
                 posterior0 = posterior / posterior.sum(axis=1, keepdims=True)
@@ -272,9 +269,9 @@ class LCM_gridsearch:
     def linreg(obs, p_US):
         """
         Compute the regression of observed responses onto p( US )
-        where obs is the vector of observed responses and p_US is 
+        where obs is the vector of observed responses and p_US is
         the vector of model implied US probabilities.
-        
+
         returns (beta, predicted response)
         """
         obs = obs[:, np.newaxis] if obs.ndim == 1 else obs
